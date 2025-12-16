@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace StarMapGenerator;
 
-public class Generator4
+public class Generator3
 {
     public int StarCount { get; set; } = 80;
 
@@ -96,8 +97,7 @@ public class Generator4
             stars.Add((x, y, z));
         }
 
-        ApplyRandomDistances(); 
-        ApplyCoreCompression();
+        ApplyRandomDistances();
     }
 
     // --------------------------------------------------------------------
@@ -156,30 +156,6 @@ public class Generator4
     //  ВСПОМОГАТЕЛЬНОЕ: создание неоднородных расстояний
     // --------------------------------------------------------------------
 
-    private void ApplyCoreCompression()
-    {
-        double radius = EstimateRadius();
-
-        // Насколько сильно сжимаем центр
-        double centerScale = 0.5; // например 2/10 = 0.2
-
-        // Насколько мягко растёт плотность
-        double falloffPower = 3;
-
-        for (int i = 0; i < stars.Count; i++)
-        {
-            var s = stars[i];
-
-            double r = Math.Sqrt(s.x * s.x + s.y * s.y + s.z * s.z);
-            double t = Math.Pow(Math.Min(1.0, r / radius), falloffPower);
-
-            // S(r) = interpolation between compressed center and normal space
-            double scale = centerScale + (1.0 - centerScale) * t;
-
-            stars[i] = (s.x * scale, s.y * scale, s.z * scale);
-        }
-    }
-
     private void ApplyRandomDistances()
     {
         for (int i = 0; i < stars.Count; i++)
@@ -210,7 +186,6 @@ public class Generator4
             }
         }
     }
-
 
     private double RandomDistance()
     {

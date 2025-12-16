@@ -1,14 +1,18 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace StarMapGenerator;
 
 /// <summary>
 /// Умеет генерировать галактику с более плотным ядром, 
-/// но не умеет пересчитывать толщину для компенсации повышенной плотности.<br/>
-/// Умеет генерировать столкновение галактик.<br/>
-/// Добавлена коррекция в толщине генерации плоскости.
+/// но не умеет пересчитывать толщину для компенсации повышенной плотности.
 /// </summary>
-public class Generator6
+public class Generator5
 {
     /// <summary>
     /// Количество звёзд.
@@ -48,23 +52,13 @@ public class Generator6
     /// <summary>
     /// Плавность перехода от ядра к диску.
     /// </summary>
-    public double CoreScale { get; set; } = 0.4;
+    public double CoreScale { get; set; } = 0.3;
 
     /// <summary>
     /// Плавность перехода от ядра к диску.
     /// </summary>
     public double FalloffPower { get; set; } = 2.2;
-
-    /// <summary>
-    /// Стадия столкновения галактик (0.0 - начало, 1.0 - конец).
-    /// </summary>
-    public double CollisionStage { get; set; } = 0.5;
-
-    /// <summary>
-    /// Угол наклона второй галактики при столкновении (в градусах).
-    /// </summary>
-    public double CollisionTiltDegrees { get; set; } = 45.0;
-
+   
     /// <summary>
     /// Режимы карты.
     /// </summary>
@@ -135,14 +129,13 @@ public class Generator6
             _stars.Add((x, y, z));
         }
 
-        ApplyRandomDistances();
+        ApplyRandomDistances(); 
         ApplyCoreCompression();
     }
 
     private void GeneratePlane()
     {
         double radius = EstimateRadius();
-        const int ThicknessOptimizer = 2;
 
         for (int i = 0; i < StarCount; i++)
         {
@@ -152,7 +145,7 @@ public class Generator6
 
             double x = Math.Cos(angle) * r;
             double y = Math.Sin(angle) * r;
-            double z = (_rng.NextDouble() - 0.5) * Thickness * ThicknessOptimizer;
+            double z = (_rng.NextDouble() - 0.5) * Thickness;
 
             _stars.Add((x, y, z));
         }
@@ -162,67 +155,29 @@ public class Generator6
 
     private void GenerateCollidingGalaxies()
     {
-        // Генерация первой галактики
-        var originalStarCount = StarCount;
-        StarCount = originalStarCount / 2;
-        GenerateGalaxy();
-        var galaxy1 = new List<(double x, double y, double z)>(_stars);
+        double radius = EstimateRadius() * 0.7;
+        double offset = radius * 1.5;
+        double sigma = radius / 3.0;
 
-        // Генерация второй галактики
-        _stars.Clear();
-        StarCount = originalStarCount / 2 + (originalStarCount % 2);
-        GenerateGalaxy();
-        var galaxy2 = new List<(double x, double y, double z)>(_stars);
-
-        // Определяем смещение для столкновения
-        double radius1 = EstimateRadius(galaxy1);
-        double radius2 = EstimateRadius(galaxy2);
-
-        // Расстояние между центрами: 0 = центры в одной точке, 1 = края галактик соприкасаются
-        double distanceBetweenCenters = (1.0 - CollisionStage) * (radius1 + radius2);
-
-        // Вектор столкновения (по оси X, можно потом случайно вращать)
-        var collisionVector = (x: distanceBetweenCenters, y: 0.0, z: 0.0);
-
-        // Вращение второй галактики
-        double tiltRad = CollisionTiltDegrees * Math.PI / 180.0;
-        double cos = Math.Cos(tiltRad);
-        double sin = Math.Sin(tiltRad);
-
-        for (int i = 0; i < galaxy2.Count; i++)
+        for (int i = 0; i < StarCount; i++)
         {
-            var s = galaxy2[i];
+            bool galaxyA = (i < StarCount / 2);
 
-            // Вращение вокруг X
-            double y = s.y * cos - s.z * sin;
-            double z = s.y * sin + s.z * cos;
+            double x = RandomGaussian() * sigma;
+            double y = RandomGaussian() * sigma;
 
-            // Сдвиг для столкновения
-            galaxy2[i] = (s.x + collisionVector.x, y + collisionVector.y, z + collisionVector.z);
+            if (galaxyA) x -= offset;
+            else x += offset;
+
+            double z = (_rng.NextDouble() - 0.5) * Thickness;
+
+            _stars.Add((x, y, z));
         }
 
-        // Объединяем галактики в _stars
-        _stars.Clear();
-        _stars.AddRange(galaxy1);
-        _stars.AddRange(galaxy2);
-
-        // Восстанавливаем StarCount
-        StarCount = originalStarCount;
+        ApplyRandomDistances();
     }
 
     #region ВСПОМОГАТЕЛЬНОЕ: создание неоднородных расстояний
-
-    private double EstimateRadius(List<(double x, double y, double z)> stars = null)
-    {
-        var s = stars ?? _stars;
-        double maxDist = 0.0;
-        foreach (var star in s)
-        {
-            double r = Math.Sqrt(star.x * star.x + star.y * star.y + star.z * star.z);
-            if (r > maxDist) maxDist = r;
-        }
-        return maxDist;
-    }
 
     private void ApplyCoreCompression()
     {
